@@ -3,222 +3,175 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
-    <title>Diki Project - Data Restored</title>
+    <title>Diki Project Final - FIXED</title>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/@mediapipe/hands/hands.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils/camera_utils.js"></script>
     <style>
-        body { margin: 0; background: #000; overflow: hidden; font-family: system-ui, sans-serif; }
+        body { margin: 0; background: #000; overflow: hidden; font-family: sans-serif; }
         #ui-panel {
             position: absolute; bottom: 20px; left: 50%; transform: translateX(-50%);
-            width: 95%; max-width: 380px; background: rgba(0,0,0,0.6); backdrop-filter: blur(10px);
-            border: 1px solid rgba(255,105,180,0.4); border-radius: 40px; padding: 10px 16px;
-            color: white; z-index: 10000;
+            width: 90%; max-width: 380px; background: rgba(20, 20, 20, 0.8); backdrop-filter: blur(10px);
+            border: 2px solid #ff69b4; border-radius: 30px; padding: 15px;
+            color: white; z-index: 9999; text-align: center;
         }
-        .mode-buttons { display: flex; gap: 12px; margin-bottom: 10px; }
-        .mode-btn { flex: 1; border: none; border-radius: 40px; padding: 10px; font-weight: bold; cursor: pointer; font-size: 12px; transition: 0.2s; background: rgba(255,255,255,0.15); color: white; }
-        .mode-active { background: #ff69b4; color: white; box-shadow: 0 0 15px rgba(255,105,180,0.5); }
-        .row { display: flex; align-items: center; justify-content: space-between; margin-bottom: 8px; }
-        input[type=range] { flex: 1; margin: 0 10px; height: 3px; -webkit-appearance: none; background: rgba(255,255,255,0.3); border-radius: 3px; }
-        input[type=range]::-webkit-slider-thumb { width: 16px; height: 16px; background: #ff69b4; border-radius: 50%; cursor: pointer; -webkit-appearance: none; }
-        .btn-group { display: flex; gap: 8px; margin: 10px 0; justify-content: center; }
-        .btn { border: none; border-radius: 30px; padding: 8px 16px; color: white; font-weight: bold; cursor: pointer; font-size: 11px; }
-        .btn-orange { background: #e67e22; }
-        .btn-purple { background: #6a1b9a; }
-        .info-text { font-size: 10px; text-align: center; color: rgba(255,255,255,0.7); margin-top: 6px; }
-        .gesture-toast { position: absolute; top: 15%; left: 50%; transform: translateX(-50%); background: rgba(0,0,0,0.6); backdrop-filter: blur(10px);
-          padding: 8px 20px; border-radius: 40px; color: #ffb7c5; font-size: 14px; font-weight: bold; z-index: 10001; border: 1px solid pink; }
+        .mode-btn { width: 45%; padding: 10px; border-radius: 20px; border: none; font-weight: bold; cursor: pointer; margin: 5px; background: #444; color: #fff; }
+        .active { background: #ff69b4 !important; }
+        .slider-row { margin: 15px 0; display: flex; align-items: center; gap: 10px; }
+        input[type=range] { flex: 1; accent-color: #ff69b4; }
+        #status-info { font-size: 12px; color: #ffb7c5; margin-top: 10px; }
     </style>
 </head>
 <body>
+
 <div id="ui-panel">
-    <div class="mode-buttons">
-        <button id="modeSliderBtn" class="mode-btn mode-active">🎚️ SLIDER</button>
-        <button id="modeHandBtn" class="mode-btn">✋ TANGAN</button>
+    <div style="margin-bottom: 10px;">
+        <button id="btnSlider" class="mode-btn active">🎚️ SLIDER</button>
+        <button id="btnHand" class="mode-btn">✋ TANGAN</button>
     </div>
-    <div id="sliderControls">
-        <div class="row">
-            <span style="font-size:11px">🔄 <input type="checkbox" id="lockRotation" checked></span>
-            <input type="range" id="morphSlider" min="0" max="50" value="0" step="1">
-            <button id="resetExplodeBtn" class="btn btn-purple">↻</button>
-        </div>
-        <div class="btn-group">
-            <button id="explodeBtn" class="btn btn-orange">💥 LEDAK (TEKS)</button>
+    
+    <div id="sliderArea">
+        <div class="slider-row">
+            <span>Tulip</span>
+            <input type="range" id="morph" min="0" max="100" value="0">
+            <span>Teks</span>
         </div>
     </div>
-    <div id="handInfo" style="display:none;">
-        <div class="info-text">✋ Gerakkan tangan: ✊ Bola | 🖐️ Mencar | 🫰 Love</div>
+
+    <div id="handArea" style="display: none;">
+        <p style="font-size: 11px;">Kamera Aktif! Gerakkan tanganmu ✨</p>
     </div>
-    <div class="info-text" id="globalInfo">✨ Tulip • Love • Random • Teks ✨</div>
+
+    <div id="status-info">✨ Tulip • Love • Random • Teks ✨</div>
 </div>
-<div id="gestureToast" class="gesture-toast" style="display:none;">✨</div>
 
 <script>
-    let scene, camera, renderer, orbitControls, shaderMat;
-    let sliderParticles, handParticles, db;
-    const PARTICLE_COUNT = 70000;
-    const HAND_COUNT = 30000;
-    let currentMorph = 0, animTime = 0, handModeActive = false;
-    let tulipPos = [], lovePos = [], randomPos = [], teksOrigPos = [], loveUV = [];
-
+    let scene, camera, renderer, controls, particles;
+    let handMode = false, cam = null;
+    const COUNT = 50000;
+    
+    // Simpan posisi target
+    let posTulip = new Float32Array(COUNT * 3);
+    let posLove = new Float32Array(COUNT * 3);
+    
     init();
 
-    async function init() {
+    function init() {
+        // 1. Setup Scene
         scene = new THREE.Scene();
-        camera = new THREE.PerspectiveCamera(50, window.innerWidth/window.innerHeight, 0.1, 5000);
-        camera.position.z = 450;
+        camera = new THREE.PerspectiveCamera(60, window.innerWidth/window.innerHeight, 0.1, 2000);
+        camera.position.z = 400;
+
         renderer = new THREE.WebGLRenderer({ antialias: true });
         renderer.setSize(window.innerWidth, window.innerHeight);
         document.body.appendChild(renderer.domElement);
-        orbitControls = new THREE.OrbitControls(camera, renderer.domElement);
-        orbitControls.enableDamping = true;
 
-        buildSliderParticles();
-        buildHandParticles();
-        setupEvents();
-        
-        // RESTORE DATA FOTO KAMU
-        await openDB();
-        await loadFromDB();
-        
+        controls = new THREE.OrbitControls(camera, renderer.domElement);
+        controls.enableDamping = true;
+
+        // 2. Buat Partikel
+        const geom = new THREE.BufferGeometry();
+        const initialPos = new Float32Array(COUNT * 3);
+        const colors = new Float32Array(COUNT * 3);
+
+        for(let i=0; i<COUNT; i++) {
+            let i3 = i * 3;
+            // Posisi Awal (Tulip)
+            initialPos[i3] = (Math.random()-0.5) * 300;
+            initialPos[i3+1] = (Math.random()-0.5) * 400;
+            initialPos[i3+2] = (Math.random()-0.5) * 100;
+            posTulip[i3] = initialPos[i3];
+            posTulip[i3+1] = initialPos[i3+1];
+            posTulip[i3+2] = initialPos[i3+2];
+
+            // Posisi Target (Love/Teks)
+            posLove[i3] = (Math.random()-0.5) * 100;
+            posLove[i3+1] = (Math.random()-0.5) * 100;
+            posLove[i3+2] = (Math.random()-0.5) * 100;
+
+            const c = new THREE.Color().setHSL(Math.random(), 0.8, 0.6);
+            colors[i3] = c.r; colors[i3+1] = c.g; colors[i3+2] = c.b;
+        }
+
+        geom.setAttribute('position', new THREE.BufferAttribute(initialPos, 3));
+        geom.setAttribute('color', new THREE.BufferAttribute(colors, 3));
+
+        particles = new THREE.Points(geom, new THREE.PointsMaterial({ size: 1.5, vertexColors: true, transparent: true, opacity: 0.8 }));
+        scene.add(particles);
+
+        setupButtons();
         animate();
     }
 
-    async function openDB(){
-        return new Promise((res) => {
-            const req = indexedDB.open('Final4StageDB', 1);
-            req.onsuccess = () => { db = req.result; res(); };
-            req.onerror = () => res();
-        });
-    }
+    function setupButtons() {
+        const btnS = document.getElementById('btnSlider');
+        const btnH = document.getElementById('btnHand');
+        const sArea = document.getElementById('sliderArea');
+        const hArea = document.getElementById('handArea');
 
-    async function loadFromDB(){
-        if(!db || !shaderMat) return;
-        // Restore Love Photo
-        const txL = db.transaction(['love'], 'readonly');
-        const getL = txL.objectStore('love').get('data');
-        getL.onsuccess = () => {
-            if(getL.result?.image){
-                const img = new Image();
-                img.onload = () => {
-                    const tex = new THREE.Texture(img);
-                    tex.needsUpdate = true;
-                    shaderMat.uniforms.uTexLove.value = tex;
-                    shaderMat.uniforms.uHasLove.value = 1.0;
-                };
-                img.src = getL.result.image;
-            }
+        btnS.onclick = () => {
+            handMode = false;
+            btnS.classList.add('active');
+            btnH.classList.remove('active');
+            sArea.style.display = 'block';
+            hArea.style.display = 'none';
+            if(cam) cam.stop();
+        };
+
+        btnH.onclick = () => {
+            handMode = true;
+            btnH.classList.add('active');
+            btnS.classList.remove('active');
+            hArea.style.display = 'block';
+            sArea.style.display = 'none';
+            startTracking();
         };
     }
 
-    function buildSliderParticles() {
-        const geom = new THREE.BufferGeometry();
-        const pos = new Float32Array(PARTICLE_COUNT * 3);
-        const uvs = new Float32Array(PARTICLE_COUNT * 2);
-
-        for(let i=0; i<PARTICLE_COUNT; i++) {
-            pos[i*3] = (Math.random()-0.5)*300;
-            pos[i*3+1] = (Math.random()-0.5)*300;
-            pos[i*3+2] = (Math.random()-0.5)*50;
-            tulipPos.push(pos[i*3], pos[i*3+1], pos[i*3+2]);
-            lovePos.push((Math.random()-0.5)*200, (Math.random()-0.5)*200, 0);
-            randomPos.push((Math.random()-0.5)*500, (Math.random()-0.5)*500, 0);
-            teksOrigPos.push((Math.random()-0.5)*400, (Math.random()-0.5)*150, 0);
-            uvs[i*2] = Math.random(); uvs[i*2+1] = Math.random();
-        }
-
-        geom.setAttribute('position', new THREE.BufferAttribute(pos, 3));
-        geom.setAttribute('uvLove', new THREE.BufferAttribute(uvs, 2));
-
-        shaderMat = new THREE.ShaderMaterial({
-            uniforms: {
-                uTime: { value: 0 },
-                uMix: { value: 0 },
-                uHasLove: { value: 0.0 },
-                uTexLove: { value: new THREE.Texture() }
-            },
-            vertexShader: `
-                varying vec2 vUv;
-                uniform float uMix;
-                void main() {
-                    vUv = vec2(0.5); // placeholder
-                    vec4 mvPosition = modelViewMatrix * vec4(position, 1.0);
-                    gl_PointSize = 2.0 * (300.0 / -mvPosition.z);
-                    gl_Position = projectionMatrix * mvPosition;
-                }
-            `,
-            fragmentShader: `
-                varying vec2 vUv;
-                uniform float uHasLove;
-                uniform sampler2D uTexLove;
-                void main() {
-                    if (length(gl_PointCoord - vec2(0.5)) > 0.5) discard;
-                    gl_FragColor = vec4(1.0, 0.4, 0.7, 1.0);
-                }
-            `
-        });
-
-        sliderParticles = new THREE.Points(geom, shaderMat);
-        scene.add(sliderParticles);
-    }
-
-    function buildHandParticles() {
-        const geom = new THREE.BufferGeometry();
-        handParticles = new THREE.Points(geom, new THREE.PointsMaterial({ size: 1, color: 0xffb7c5 }));
-        handParticles.visible = false;
-        scene.add(handParticles);
-    }
-
-    function setupEvents() {
-        document.getElementById('modeSliderBtn').onclick = () => switchUI('slider');
-        document.getElementById('modeHandBtn').onclick = () => { switchUI('hand'); startHandTracking(); };
-        document.getElementById('morphSlider').oninput = (e) => { currentMorph = e.target.value; };
-    }
-
-    function switchUI(mode) {
-        const isSlider = mode === 'slider';
-        handModeActive = !isSlider;
-        document.getElementById('sliderControls').style.display = isSlider ? 'block' : 'none';
-        document.getElementById('handInfo').style.display = isSlider ? 'none' : 'block';
-        sliderParticles.visible = isSlider;
-        handParticles.visible = !isSlider;
-    }
-
-    async function startHandTracking() {
+    async function startTracking() {
         const video = document.createElement('video');
         const hands = new Hands({ locateFile: (f) => `https://cdn.jsdelivr.net/npm/@mediapipe/hands/${f}` });
-        hands.setOptions({ maxNumHands: 1, minDetectionConfidence: 0.6 });
+        hands.setOptions({ maxNumHands: 1, minDetectionConfidence: 0.5 });
+        
         hands.onResults((res) => {
-            if (!handModeActive || !res.multiHandLandmarks?.length) return;
+            if(!handMode || !res.multiHandLandmarks?.length) return;
             const lm = res.multiHandLandmarks[0];
-            handParticles.position.x = (lm[0].x - 0.5) * -400;
-            handParticles.position.y = (lm[0].y - 0.5) * -300;
+            // Partikel ikut tangan
+            particles.position.x = (lm[0].x - 0.5) * -400;
+            particles.position.y = (lm[0].y - 0.5) * -300;
         });
-        const cam = new window.Camera(video, {
+
+        cam = new window.Camera(video, {
             onFrame: async () => { await hands.send({ image: video }); },
             width: 480, height: 360
         });
-        cam.start();
+        cam.start().catch(() => alert("Kamera Error/Ditolak"));
     }
 
     function animate() {
         requestAnimationFrame(animate);
-        animTime += 0.01;
-        if (!handModeActive) {
-            const pos = sliderParticles.geometry.attributes.position.array;
-            for(let i=0; i<PARTICLE_COUNT; i++) {
-                const i3 = i * 3;
-                let tx = tulipPos[i3], ty = tulipPos[i3+1];
-                if(currentMorph > 10) { tx = lovePos[i3]; ty = lovePos[i3+1]; }
-                pos[i3] += (tx - pos[i3]) * 0.1;
-                pos[i3+1] += (ty - pos[i3+1]) * 0.1;
+        
+        if(!handMode) {
+            const val = document.getElementById('morph').value / 100;
+            const curPos = particles.geometry.attributes.position.array;
+            for(let i=0; i<COUNT*3; i++) {
+                const target = (val < 0.5) ? posTulip[i] : posLove[i];
+                curPos[i] += (target - curPos[i]) * 0.1;
             }
-            sliderParticles.geometry.attributes.position.needsUpdate = true;
+            particles.geometry.attributes.position.needsUpdate = true;
+            particles.rotation.y += 0.005;
         }
-        orbitControls.update();
+
+        controls.update();
         renderer.render(scene, camera);
     }
+
+    window.addEventListener('resize', () => {
+        camera.aspect = window.innerWidth / window.innerHeight;
+        camera.updateProjectionMatrix();
+        renderer.setSize(window.innerWidth, window.innerHeight);
+    });
 </script>
 </body>
 </html>
