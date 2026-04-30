@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
-    <title>Dual Mode: Slider (Stage3 Upload Foto) + Hand Tracking</title>
+    <title>Dual Mode: Slider + Hand Tracking</title>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/@mediapipe/hands/hands.js"></script>
@@ -12,64 +12,54 @@
         body { margin: 0; background: #000; overflow: hidden; font-family: system-ui, sans-serif; }
         #ui-panel {
             position: absolute; bottom: 20px; left: 50%; transform: translateX(-50%);
-            width: 95%; max-width: 480px; background: rgba(0,0,0,0.85); backdrop-filter: blur(8px);
-            border: 1px solid #ff69b4; border-radius: 24px; padding: 12px; color: white; z-index: 10000;
+            width: 95%; max-width: 380px; background: rgba(0,0,0,0.5); backdrop-filter: blur(10px);
+            border: 1px solid rgba(255,105,180,0.4); border-radius: 40px; padding: 10px 16px;
+            color: white; z-index: 10000;
         }
-        .mode-buttons { display: flex; gap: 12px; margin-bottom: 12px; }
-        .mode-btn { flex: 1; border: none; border-radius: 40px; padding: 8px; font-weight: bold; cursor: pointer; font-size: 13px; transition: 0.2s; }
-        .mode-active { background: #ff69b4; color: white; box-shadow: 0 0 8px #ff69b4; }
-        .mode-inactive { background: #2a2a3a; color: #aaa; }
+        .mode-buttons { display: flex; gap: 12px; margin-bottom: 10px; }
+        .mode-btn { flex: 1; border: none; border-radius: 40px; padding: 6px; font-weight: bold; cursor: pointer; font-size: 12px; transition: 0.2s; background: rgba(255,255,255,0.15); color: white; }
+        .mode-active { background: #ff69b4; color: white; }
+        .mode-inactive { background: rgba(255,255,255,0.15); color: #ccc; }
         .row { display: flex; align-items: center; justify-content: space-between; margin-bottom: 8px; }
-        input[type=range] { flex: 1; margin: 0 10px; accent-color: #ff69b4; }
-        .btn-group { display: flex; gap: 8px; margin: 10px 0; flex-wrap: wrap; justify-content: center; }
+        input[type=range] { flex: 1; margin: 0 10px; height: 3px; -webkit-appearance: none; background: rgba(255,255,255,0.3); border-radius: 3px; }
+        input[type=range]::-webkit-slider-thumb { width: 14px; height: 14px; background: #ff69b4; border-radius: 50%; cursor: pointer; -webkit-appearance: none; }
+        .btn-group { display: flex; gap: 8px; margin: 10px 0; justify-content: center; }
         .btn { border: none; border-radius: 30px; padding: 6px 14px; color: white; font-weight: bold; cursor: pointer; font-size: 11px; transition: 0.2s; }
-        .btn-blue { background: #1e6091; }
-        .btn-red { background: #c1121f; }
-        .btn-green { background: #2e7d32; }
         .btn-orange { background: #e67e22; }
         .btn-purple { background: #6a1b9a; }
-        .info-text { font-size: 9px; text-align: center; color: #ffb7c5; margin-top: 6px; }
         .size-control { display: flex; align-items: center; gap: 6px; margin-top: 5px; }
-        .gesture-toast { position: absolute; top: 20%; left: 50%; transform: translate(-50%, -50%); background: rgba(0,0,0,0.7); backdrop-filter: blur(12px);
-          padding: 8px 20px; border-radius: 60px; color: #ffb7c5; font-size: 20px; font-weight: bold; letter-spacing: 2px; z-index: 10001; white-space: nowrap; pointer-events: none; border: 1px solid #ff69b4; }
-        @media (max-width: 550px) { .btn { padding: 4px 10px; font-size: 9px; } .info-text { font-size: 8px; } .gesture-toast { font-size: 14px; top: 18%; } }
+        .info-text { font-size: 9px; text-align: center; color: rgba(255,255,255,0.6); margin-top: 6px; }
+        .gesture-toast { position: absolute; top: 20%; left: 50%; transform: translate(-50%, -50%); background: rgba(0,0,0,0.6); backdrop-filter: blur(12px);
+          padding: 6px 18px; border-radius: 40px; color: #ffb7c5; font-size: 16px; font-weight: bold; z-index: 10001; white-space: nowrap; pointer-events: none; border: 1px solid rgba(255,105,180,0.5); }
+        @media (max-width: 550px) { .mode-btn { font-size: 10px; } .btn { font-size: 9px; } .gesture-toast { font-size: 12px; } }
     </style>
 </head>
 <body>
 <div id="ui-panel">
     <div class="mode-buttons">
-        <button id="modeSliderBtn" class="mode-btn mode-active">🎚️ SLIDER MODE</button>
-        <button id="modeHandBtn" class="mode-btn mode-inactive">✋ TANGAN MODE</button>
+        <button id="modeSliderBtn" class="mode-btn mode-active">🎚️ SLIDER</button>
+        <button id="modeHandBtn" class="mode-btn mode-inactive">✋ TANGAN</button>
     </div>
-    <div id="sliderControls">
-        <div class="row">
-            <span style="font-size:12px">🔄 <input type="checkbox" id="lockRotation" checked></span>
-            <input type="range" id="morphSlider" min="0" max="50" value="50" step="1">
-            <button id="resetExplodeBtn" class="btn btn-purple" style="font-size:14px; padding:4px 12px;">↻</button>
-        </div>
-        <div class="btn-group">
-            <button id="explodeBtn" class="btn btn-orange">💥 LEDAK (TEKS)</button>
-            <button id="uploadTeksBtn" class="btn btn-blue">📸 RATUSAN FOTO (TEKS)</button>
-            <button id="uploadLoveBtn" class="btn btn-red">❤️ FOTO LOVE (1 FOTO)</button>
-            <button id="uploadRandomBtn" class="btn btn-green">🎨 UPLOAD FOTO (STAGE 3)</button>
-        </div>
-        <div class="size-control">
-            <span style="font-size:11px">🔘 PARTIKEL SIZE</span>
-            <input type="range" id="sizeSlider" min="0" max="100" value="15" step="1">
-            <span id="sizeVal">15%</span>
-        </div>
+    <div class="row">
+        <span style="font-size:11px">🔄 <input type="checkbox" id="lockRotation" checked></span>
+        <input type="range" id="morphSlider" min="0" max="50" value="50" step="1">
+        <button id="resetExplodeBtn" class="btn btn-purple" style="font-size:14px; padding:4px 12px;">↻</button>
     </div>
-    <div id="handControls" style="display:none;">
-        <div class="info-text">✋ HIDUPKAN KAMERA — gerakan tangan mengubah radius partikel neon ✨</div>
-        <div class="info-text" style="margin-top:4px;">✊🏻 mengepal (merapat) • 🖐🏻 terbuka (mencar) • 🫰🏻 love • ✌🏻 peace • 👍🏻 jempol • 🤘 horn</div>
+    <div class="btn-group">
+        <button id="explodeBtn" class="btn btn-orange">💥 LEDAK (TEKS)</button>
     </div>
-    <div class="info-text" id="globalInfo">✨ Tulip(0-12) Ratusan | Love(12-25) 1Foto | Random(25-37) UPLOAD FOTO | Teks(37-50) Ratusan | 💥 ledak | ↻ reset ✨</div>
+    <div class="size-control">
+        <span style="font-size:11px">🔘 SIZE</span>
+        <input type="range" id="sizeSlider" min="0" max="100" value="15" step="1">
+        <span id="sizeVal" style="font-size:11px; min-width:35px">15%</span>
+    </div>
+    <div id="handInfo" style="display:none;">
+        <div class="info-text">✋ HIDUPKAN KAMERA — gerakan tangan mengubah BENTUK partikel ✨</div>
+        <div class="info-text" style="margin-top:4px;">✊🏻 bola padat | 🖐🏻 mencar acak | ✌🏻 tulisan | 🤘 simbol | 🫰🏻 love</div>
+    </div>
+    <div class="info-text" id="globalInfo">✨ Tulip • Love • Random • Teks ✨</div>
 </div>
 <div id="gestureToast" class="gesture-toast" style="display:none;">✨</div>
-
-<input type="file" id="loveFile" style="display:none" accept="image/*">
-<input type="file" id="teksFile" style="display:none" accept="image/*" multiple>
-<input type="file" id="randomFile" style="display:none" accept="image/*">
 
 <script>
     // ========== SLIDER MODE ==========
@@ -83,20 +73,21 @@
     let loveUV = [], randomColorsArr = [];
     let teksVelocity = [], teksFloat = [];
     let explodeT = 0, explodeTarget = 0, isExploding = false;
-    let teksImages = [], loveImage = null, db = null, isUploading = false;
     let currentSizePercent = 15;
     
     // ========== HAND MODE ==========
     let handModeActive = false;
-    let handCore = null, handGlow = null, handGeom = null, handBasePos = null;
+    let handParticles = null;
+    let handGeom = null;
     const HAND_COUNT = 30000;
-    let handX = 0, handY = 0, handRadius = 2.5, targetRadius = 2.5;
+    let handX = 0, handY = 0;
     let gestureTimer = null;
     let handCameraInstance = null;
     
-    // reset DB
-    const deleteDb = indexedDB.deleteDatabase('Final4StageDB');
-    deleteDb.onsuccess = () => console.log('DB reset fresh');
+    // Shape data
+    let loveTextPoints = [], victoryTextPoints = [], hornSymbolPoints = [];
+    
+    let db = null;
     
     setTimeout(() => {
         initApp();
@@ -106,6 +97,244 @@
     async function initApp(){
         await openDB();
         await loadFromDB();
+        
+        scene = new THREE.Scene();
+        scene.background = new THREE.Color(0x05050a);
+        camera = new THREE.PerspectiveCamera(48, window.innerWidth/window.innerHeight, 0.2, 5000);
+        camera.position.set(0, -15, 460);
+        renderer = new THREE.WebGLRenderer({ antialias: true });
+        renderer.setSize(window.innerWidth, window.innerHeight);
+        document.body.appendChild(renderer.domElement);
+        orbitControls = new THREE.OrbitControls(camera, renderer.domElement);
+        orbitControls.enableDamping = true;
+        orbitControls.zoomSpeed = 1.2;
+        
+        // stars
+        const starCount = 7000;
+        const starGeo = new THREE.BufferGeometry();
+        const starPos = [];
+        for(let i=0;i<starCount;i++){ starPos.push((Math.random()-0.5)*6000, (Math.random()-0.5)*3500, (Math.random()-0.5)*1800-600); }
+        starGeo.setAttribute('position', new THREE.BufferAttribute(new Float32Array(starPos),3));
+        starField = new THREE.Points(starGeo, new THREE.PointsMaterial({ color: 0xaaccff, size: 0.45, transparent: true, opacity: 0.6 }));
+        scene.add(starField);
+        
+        await buildShapes();
+        await buildHandShapes();
+        
+        handParticles.visible = false;
+        document.getElementById('handInfo').style.display = 'none';
+        
+        // EVENTS
+        document.getElementById('modeSliderBtn').onclick = () => switchMode('slider');
+        document.getElementById('modeHandBtn').onclick = () => switchMode('hand');
+        document.getElementById('explodeBtn').onclick = () => { if(currentMorph>=37) { explodeTarget=50; isExploding=true; } else showTempMsg('Geser ke stage TEKS (37-50) dulu!'); };
+        document.getElementById('resetExplodeBtn').onclick = () => { explodeTarget=0; isExploding=true; };
+        
+        const morphSlider = document.getElementById('morphSlider');
+        morphSlider.oninput = (e) => { currentMorph = parseFloat(e.target.value); if(shaderMat) shaderMat.uniforms.uMix.value = currentMorph; if(currentMorph<37){ explodeTarget=0; isExploding=false; shaderMat.uniforms.uExplodeTime.value=0; } };
+        const sizeSlider = document.getElementById('sizeSlider');
+        sizeSlider.oninput = () => { currentSizePercent = parseFloat(sizeSlider.value); document.getElementById('sizeVal').innerText=Math.floor(currentSizePercent)+'%'; if(shaderMat) shaderMat.uniforms.uSizeScale.value = currentSizePercent/100; };
+        sizeSlider.oninput();
+        
+        morphSlider.value = 0; currentMorph = 0; if(shaderMat) shaderMat.uniforms.uMix.value = 0;
+    }
+    
+    async function buildHandShapes(){
+        // I LOVE BEBY
+        const loveCanvas = document.createElement('canvas');
+        loveCanvas.width = 800; loveCanvas.height = 300;
+        const loveCtx = loveCanvas.getContext('2d');
+        loveCtx.fillStyle = 'white';
+        loveCtx.font = 'bold 60px "Arial Unicode MS", "Segoe UI"';
+        loveCtx.textAlign = 'center';
+        loveCtx.textBaseline = 'middle';
+        loveCtx.fillText('I LOVE BEBY', 400, 150);
+        const loveData = loveCtx.getImageData(0, 0, 800, 300).data;
+        for(let y=0; y<300; y+=3) for(let x=0; x<800; x+=3) if(loveData[(y*800+x)*4+3] > 100) loveTextPoints.push({ x: (x-400)/25, y: (150-y)/25 });
+        
+        // U LOVE GAYIH TOO?
+        const victoryCanvas = document.createElement('canvas');
+        victoryCanvas.width = 900; victoryCanvas.height = 300;
+        const victoryCtx = victoryCanvas.getContext('2d');
+        victoryCtx.fillStyle = 'white';
+        victoryCtx.font = 'bold 45px "Arial Unicode MS", "Segoe UI"';
+        victoryCtx.textAlign = 'center';
+        victoryCtx.textBaseline = 'middle';
+        victoryCtx.fillText('U LOVE GAYIH TOO?', 450, 150);
+        const victoryData = victoryCtx.getImageData(0, 0, 900, 300).data;
+        for(let y=0; y<300; y+=3) for(let x=0; x<900; x+=3) if(victoryData[(y*900+x)*4+3] > 100) victoryTextPoints.push({ x: (x-450)/30, y: (150-y)/30 });
+        
+        // 𖨆𖠋♡𖠋
+        const hornCanvas = document.createElement('canvas');
+        hornCanvas.width = 600; hornCanvas.height = 300;
+        const hornCtx = hornCanvas.getContext('2d');
+        hornCtx.fillStyle = 'white';
+        hornCtx.font = '80px "Segoe UI", "Arial Unicode MS"';
+        hornCtx.textAlign = 'center';
+        hornCtx.textBaseline = 'middle';
+        hornCtx.fillText('𖨆𖠋♡𖠋', 300, 150);
+        const hornData = hornCtx.getImageData(0, 0, 600, 300).data;
+        for(let y=0; y<300; y+=3) for(let x=0; x<600; x+=3) if(hornData[(y*600+x)*4+3] > 100) hornSymbolPoints.push({ x: (x-300)/25, y: (150-y)/25 });
+        
+        // init hand particles
+        handGeom = new THREE.BufferGeometry();
+        const positions = new Float32Array(HAND_COUNT*3);
+        const colors = new Float32Array(HAND_COUNT*3);
+        for(let i=0;i<HAND_COUNT;i++){
+            positions[i*3] = (Math.random()-0.5)*3;
+            positions[i*3+1] = (Math.random()-0.5)*3;
+            positions[i*3+2] = (Math.random()-0.5)*2;
+            const hue = Math.random();
+            const col = new THREE.Color().setHSL(hue, 1, 0.6);
+            colors[i*3] = col.r; colors[i*3+1] = col.g; colors[i*3+2] = col.b;
+        }
+        handGeom.setAttribute('position', new THREE.BufferAttribute(positions,3));
+        handGeom.setAttribute('color', new THREE.BufferAttribute(colors,3));
+        const handMat = new THREE.PointsMaterial({ size: 0.18, vertexColors: true, transparent: true, blending: THREE.AdditiveBlending });
+        handParticles = new THREE.Points(handGeom, handMat);
+        scene.add(handParticles);
+    }
+    
+    function updateHandShape(type){
+        let targetPoints = [];
+        if(type === "fist"){
+            for(let i=0; i<HAND_COUNT; i++){ const rad = 0.8; targetPoints.push({ x: (Math.random()-0.5)*rad*2, y: (Math.random()-0.5)*rad*2, z: (Math.random()-0.5)*rad }); }
+        } else if(type === "open"){
+            for(let i=0; i<HAND_COUNT; i++){ const rad = 4.2; targetPoints.push({ x: (Math.random()-0.5)*rad*2, y: (Math.random()-0.5)*rad*2, z: (Math.random()-0.5)*rad }); }
+        } else if(type === "love"){
+            for(let i=0; i<HAND_COUNT; i++){ const p = loveTextPoints[i % loveTextPoints.length]; targetPoints.push({ x: p.x, y: p.y, z: (Math.random()-0.5)*0.5 }); }
+        } else if(type === "victory"){
+            for(let i=0; i<HAND_COUNT; i++){ const p = victoryTextPoints[i % victoryTextPoints.length]; targetPoints.push({ x: p.x, y: p.y, z: (Math.random()-0.5)*0.5 }); }
+        } else if(type === "horn"){
+            for(let i=0; i<HAND_COUNT; i++){ const p = hornSymbolPoints[i % hornSymbolPoints.length]; targetPoints.push({ x: p.x, y: p.y, z: (Math.random()-0.5)*0.5 }); }
+        }
+        const posAttr = handGeom.attributes.position.array;
+        for(let i=0; i<HAND_COUNT; i++){
+            const tp = targetPoints[i % targetPoints.length];
+            posAttr[i*3] = tp.x;
+            posAttr[i*3+1] = tp.y;
+            posAttr[i*3+2] = tp.z;
+        }
+        handGeom.attributes.position.needsUpdate = true;
+    }
+    
+    function showGestureToast(msg){
+        const el = document.getElementById('gestureToast');
+        el.textContent = msg; el.style.display = 'block';
+        if(gestureTimer) clearTimeout(gestureTimer);
+        gestureTimer = setTimeout(()=>{ el.style.display = 'none'; }, 1500);
+    }
+    
+    async function startHandTracking(){
+        if(handCameraInstance) handCameraInstance.stop();
+        const video = document.createElement('video'); video.style.display = 'none'; document.body.appendChild(video);
+        const hands = new Hands({ locateFile: (f)=>`https://cdn.jsdelivr.net/npm/@mediapipe/hands/${f}` });
+        hands.setOptions({ maxNumHands:1, modelComplexity:1, minDetectionConfidence:0.5, minTrackingConfidence:0.5 });
+        hands.onResults((res)=>{
+            if(!handModeActive) return;
+            if(res.multiHandLandmarks && res.multiHandLandmarks.length){
+                const lm = res.multiHandLandmarks[0];
+                const wrist = lm[0], indexTip = lm[8], midTip = lm[12], ringTip = lm[16], pinkyTip = lm[20], thumbTip = lm[4];
+                handX = (wrist.x - 0.5)*6; handY = (0.5 - wrist.y)*5;
+                const idxFold = indexTip.y > lm[6].y, midFold = midTip.y > lm[10].y, ringFold = ringTip.y > lm[14].y, pinkyFold = pinkyTip.y > lm[18].y;
+                const pinchDist = Math.hypot(thumbTip.x - indexTip.x, thumbTip.y - indexTip.y);
+                const isFist = idxFold && midFold && ringFold && pinkyFold;
+                const isOpen = !idxFold && !midFold && !ringFold && !pinkyFold;
+                const isVictory = !idxFold && !midFold && ringFold && pinkyFold;
+                const isHorn = !idxFold && midFold && ringFold && !pinkyFold;
+                const isLovePinch = pinchDist < 0.05;
+                
+                let shapeType = "fist";
+                let toastMsg = null;
+                if(isFist){ shapeType = "fist"; toastMsg = "✊🏻 BOLA PADAT"; }
+                else if(isOpen){ shapeType = "open"; toastMsg = "🖐🏻 MENCAR ACAK"; }
+                else if(isLovePinch){ shapeType = "love"; toastMsg = "🫰🏻 I LOVE BEBY"; }
+                else if(isVictory){ shapeType = "victory"; toastMsg = "✌🏻 U LOVE GAYIH TOO?"; }
+                else if(isHorn){ shapeType = "horn"; toastMsg = "🤘🏻 SIMBOL"; }
+                if(toastMsg) showGestureToast(toastMsg);
+                updateHandShape(shapeType);
+                if(handParticles){ handParticles.position.x = handX; handParticles.position.y = handY; }
+            }
+        });
+        const cam = new Camera(video, { onFrame: async()=>{ await hands.send({image:video}); }, width:480, height:360 });
+        handCameraInstance = cam;
+        cam.start();
+    }
+    
+    function switchMode(mode){
+        if(mode === 'slider'){
+            handModeActive = false;
+            document.getElementById('modeSliderBtn').classList.add('mode-active');
+            document.getElementById('modeSliderBtn').classList.remove('mode-inactive');
+            document.getElementById('modeHandBtn').classList.add('mode-inactive');
+            document.getElementById('modeHandBtn').classList.remove('mode-active');
+            document.getElementById('handInfo').style.display = 'none';
+            if(sliderParticles) sliderParticles.visible = true;
+            if(handParticles) handParticles.visible = false;
+            if(handCameraInstance) handCameraInstance.stop();
+            orbitControls.enabled = true;
+            document.getElementById('globalInfo').innerHTML = '✨ Tulip • Love • Random • Teks ✨';
+        } else {
+            handModeActive = true;
+            document.getElementById('modeHandBtn').classList.add('mode-active');
+            document.getElementById('modeHandBtn').classList.remove('mode-inactive');
+            document.getElementById('modeSliderBtn').classList.add('mode-inactive');
+            document.getElementById('modeSliderBtn').classList.remove('mode-active');
+            document.getElementById('handInfo').style.display = 'block';
+            if(sliderParticles) sliderParticles.visible = false;
+            if(handParticles) handParticles.visible = true;
+            orbitControls.enabled = true;
+            startHandTracking();
+            document.getElementById('globalInfo').innerHTML = '✋ TANGAN MODE — gerakan tangan ubah bentuk ✨';
+        }
+    }
+    
+    // ========== SLIDER MODE GEOMETRY ==========
+    async function buildShapes(){
+        const tulipCanvas = document.createElement('canvas'); tulipCanvas.width=400; tulipCanvas.height=400;
+        const tCtx = tulipCanvas.getContext('2d'); tCtx.fillStyle='white'; tCtx.font='350px serif'; tCtx.textAlign='center'; tCtx.textBaseline='middle'; tCtx.fillText('🌷',200,200);
+        const tulipData = tCtx.getImageData(0,0,400,400).data;
+        let tulipPts=[];
+        for(let y=0;y<400;y++) for(let x=0;x<400;x++) if(tulipData[(y*400+x)*4+3]>100) tulipPts.push({x:(x-200)*0.85, y:(200-y)*0.85});
+        const tulipColors = tulipPts.map(p => p.y > -20 ? {r:1,g:0.1,b:0.2} : {r:0.1,g:0.7,b:0.2});
+        
+        let minX=Infinity,maxX=-Infinity,minY=Infinity,maxY=-Infinity;
+        let heartSamples=[];
+        for(let i=0;i<50000;i++){
+            const t=Math.random()*Math.PI*2; const hR=Math.pow(Math.random(),0.5)*14;
+            const xh=16*Math.pow(Math.sin(t),3); const yh=13*Math.cos(t)-5*Math.cos(2*t)-2*Math.cos(3*t)-Math.cos(4*t);
+            const x=xh*hR, y=yh*hR;
+            heartSamples.push({x,y});
+            if(x<minX) minX=x; if(x>maxX) maxX=x; if(y<minY) minY=y; if(y>maxY) maxY=y;
+        }
+        minX-=25; maxX+=25; minY-=25; maxY+=25; const rangeX=maxX-minX, rangeY=maxY-minY;
+        
+        let randomPts=[];
+        for(let i=0;i<PARTICLE_COUNT;i++) randomPts.push({x:(Math.random()-0.5)*340, y:(Math.random()-0.5)*280});
+        
+        const txtCanvas = document.createElement('canvas'); txtCanvas.width=1200; txtCanvas.height=400;
+        const txtCtx = txtCanvas.getContext('2d'); txtCtx.fillStyle='white'; txtCtx.font='bold 95px Arial'; txtCtx.textAlign='center';
+        txtCtx.fillText('GAYIH SAYANG',600,150); txtCtx.fillText('BEBY & LAIQA ❤️',600,300);
+        const txtData = txtCtx.getImageData(0,0,1200,400).data;
+        let teksPts=[];
+        for(let y=0;y<400;y+=4) for(let x=0;x<1200;x+=4) if(txtData[(y*1200+x)*4+3]>128) teksPts.push({x:(x-600)*0.95, y:(200-y)*0.95});
+        
+        for(let i=0;i<PARTICLE_COUNT;i++){
+            const tulipIdx = i%tulipPts.length;
+            tulipPos.push(tulipPts[tulipIdx].x, tulipPts[tulipIdx].y, (Math.random()-0.5)*40);
+            const loveSample = heartSamples[i%heartSamples.length];
+            lovePos.push(loveSample.x+(Math.random()-0.5)*5, loveSample.y+(Math.random()-0.5)*5, (Math.random()-0.5)*50);
+            const u = (loveSample.x-minX)/rangeX, v = (loveSample.y-minY)/rangeY;
+            loveUV.push(Math.min(0.95,Math.max(0.05,u)), Math.min(0.95,Math.max(0.05,v)));
+            const rp = randomPts[i];
+            randomPos.push(rp.x, rp.y, (Math.random()-0.5)*70);
+            randomColorsArr.push(0.7,0.7,0.7);
+            const txtPt = teksPts[i%teksPts.length];
+            teksPos.push(txtPt.x+(Math.random()-0.5)*3, txtPt.y+(Math.random()-0.5)*3, (Math.random()-0.5)*15);
+            teksOrigPos.push(txtPt.x, txtPt.y, (Math.random()-0.5)*15);
+            const ang1=Math.random()*Math.PI*2, ang2=Math.random()*Math.PI*2, rad=2+Math.random()*2;
+            teksVelocity.push(Math.cos(ang1)*Math.sin(ang2)*rad, Math.sin(ang1)*Math.sin(ang2)*rad, Math.cos(ang2)*rad);
+            teksFloat.        await loadFromDB();
         
         scene = new THREE.Scene();
         scene.background = new THREE.Color(0x05050a);
