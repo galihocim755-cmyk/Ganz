@@ -28,7 +28,7 @@
         .btn-orange { background: #e67e22; }
         .btn-purple { background: #6a1b9a; }
         .size-control { display: flex; align-items: center; gap: 6px; margin-top: 5px; }
-        .info-text { font-size: 9px; text-align: center; color: rgba(255,255,255,0.6); margin-top: 6px; }
+        .info-text { font-size: 9px; text-align: center; color: #b0aac2; margin-top: 6px; }
         .gesture-toast { position: absolute; top: 20%; left: 50%; transform: translate(-50%, -50%); background: rgba(0,0,0,0.6); backdrop-filter: blur(12px);
           padding: 6px 18px; border-radius: 40px; color: #ffb7c5; font-size: 16px; font-weight: bold; z-index: 10001; white-space: nowrap; pointer-events: none; border: 1px solid rgba(255,105,180,0.5); }
         @media (max-width: 550px) { .mode-btn { font-size: 10px; } .btn { font-size: 9px; } .gesture-toast { font-size: 12px; } }
@@ -55,7 +55,7 @@
     </div>
     <div id="handInfo" style="display:none;">
         <div class="info-text">✋ HIDUPKAN KAMERA — gerakan tangan mengubah BENTUK partikel ✨</div>
-        <div class="info-text" style="margin-top:4px;">✊🏻 bola padat | 🖐🏻 mencar acak | ✌🏻 tulisan | 🤘 simbol | 🫰🏻 love</div>
+        <div class="info-text" style="margin-top:4px;">✊🏻 bola kristal | 🖐🏻 mencar total | ✌🏻 tulisan | 🤘 simbol | 🫰🏻 love</div>
     </div>
     <div class="info-text" id="globalInfo">✨ Tulip • Love • Random • Teks ✨</div>
 </div>
@@ -79,13 +79,19 @@
     let handModeActive = false;
     let handParticles = null;
     let handGeom = null;
+    let handColorsAttr = null;
     const HAND_COUNT = 30000;
+    let targetHandPositions = null;
     let handX = 0, handY = 0;
     let gestureTimer = null;
     let handCameraInstance = null;
     
     // Shape data
     let loveTextPoints = [], victoryTextPoints = [], hornSymbolPoints = [];
+    
+    // ========== SIMBOL FLOATING (SLIDER MODE ONLY) ==========
+    let symbolParticles = null;
+    let symbolTime = 0;
     
     let db = null;
     
@@ -120,6 +126,7 @@
         
         await buildShapes();
         await buildHandShapes();
+        await buildSymbols(); // SIMBOL UNTUK SLIDER MODE (diperkecil)
         
         handParticles.visible = false;
         document.getElementById('handInfo').style.display = 'none';
@@ -137,6 +144,90 @@
         sizeSlider.oninput();
         
         morphSlider.value = 0; currentMorph = 0; if(shaderMat) shaderMat.uniforms.uMix.value = 0;
+    }
+    
+    async function buildSymbols(){
+        // 5000 simbol dari kode yang lo kasih (diperkecil)
+        const symbols = ['♬', '♪', '𖹭', 'ʚɞ', '⭑', 'ूाीू'];
+        const symbolCount = 5000;
+        
+        // Canvas texture atlas
+        const canvas = document.createElement('canvas');
+        canvas.width = 2048;
+        canvas.height = 256;
+        const ctx = canvas.getContext('2d');
+        ctx.fillStyle = 'white';
+        ctx.font = 'bold 150px "Segoe UI", "Arial Unicode MS"';
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'middle';
+        symbols.forEach((s, i) => {
+            ctx.fillText(s, 170 + i * 340, 128);
+        });
+        const texture = new THREE.CanvasTexture(canvas);
+        
+        const symbolGeo = new THREE.BufferGeometry();
+        const positions = new Float32Array(symbolCount * 3);
+        const randArr = new Float32Array(symbolCount);
+        const symIdxArr = new Float32Array(symbolCount);
+        
+        for(let i=0; i<symbolCount; i++){
+            // Sebaran luas
+            positions[i*3] = (Math.random() - 0.5) * 8000;
+            positions[i*3+1] = (Math.random() - 0.5) * 6000;
+            positions[i*3+2] = (Math.random() - 0.5) * 3000;
+            randArr[i] = Math.random();
+            symIdxArr[i] = Math.floor(Math.random() * symbols.length);
+        }
+        symbolGeo.setAttribute('position', new THREE.BufferAttribute(positions,3));
+        symbolGeo.setAttribute('aRandom', new THREE.BufferAttribute(randArr,1));
+        symbolGeo.setAttribute('aSymbolIdx', new THREE.BufferAttribute(symIdxArr,1));
+        
+        const symbolShaderMat = new THREE.ShaderMaterial({
+            uniforms: {
+                uTime: { value: 0 },
+                uTex: { value: texture },
+                uNumSymbols: { value: symbols.length }
+            },
+            transparent: true,
+            depthTest: false,
+            blending: THREE.AdditiveBlending,
+            vertexShader: `
+                uniform float uTime;
+                uniform float uNumSymbols;
+                attribute float aRandom;
+                attribute float aSymbolIdx;
+                varying float vSymbolIdx;
+                varying float vAlpha;
+                void main() {
+                    vSymbolIdx = aSymbolIdx;
+                    vec3 pos = position;
+                    float speed = 25.0;
+                    pos.y += mod(uTime * speed + (aRandom * 6000.0), 6000.0) - 3000.0;
+                    pos.x += sin(uTime * 0.2 + aRandom * 20.0) * 200.0;
+                    vec4 mvPos = modelViewMatrix * vec4(pos, 1.0);
+                    // UKURAN LEBIH KECIL (dari 22-42 jadi 14-26)
+                    gl_PointSize = (14.0 + aRandom * 12.0) * (1500.0 / -mvPos.z);
+                    gl_Position = projectionMatrix * mvPos;
+                    vAlpha = smoothstep(-3000.0, -2000.0, pos.y) * smoothstep(3000.0, 2000.0, pos.y);
+                }
+            `,
+            fragmentShader: `
+                uniform sampler2D uTex;
+                uniform float uNumSymbols;
+                varying float vSymbolIdx;
+                varying float vAlpha;
+                void main() {
+                    vec2 uv = vec2(gl_PointCoord.x, 1.0 - gl_PointCoord.y);
+                    uv.x = (uv.x + vSymbolIdx) / uNumSymbols;
+                    vec4 texColor = texture2D(uTex, uv);
+                    vec3 pinkGlow = vec3(1.0, 0.3, 0.7);
+                    gl_FragColor = vec4(pinkGlow, texColor.a * vAlpha * 0.45);
+                }
+            `
+        });
+        
+        symbolParticles = new THREE.Points(symbolGeo, symbolShaderMat);
+        scene.add(symbolParticles);
     }
     
     async function buildHandShapes(){
@@ -181,41 +272,104 @@
         const positions = new Float32Array(HAND_COUNT*3);
         const colors = new Float32Array(HAND_COUNT*3);
         for(let i=0;i<HAND_COUNT;i++){
-            positions[i*3] = (Math.random()-0.5)*3;
-            positions[i*3+1] = (Math.random()-0.5)*3;
-            positions[i*3+2] = (Math.random()-0.5)*2;
+            positions[i*3] = (Math.random() - 0.5) * 10;
+            positions[i*3+1] = (Math.random() - 0.5) * 10;
+            positions[i*3+2] = (Math.random() - 0.5) * 10;
             const hue = Math.random();
-            const col = new THREE.Color().setHSL(hue, 1, 0.6);
+            const col = new THREE.Color().setHSL(hue, 0.8, 0.6);
             colors[i*3] = col.r; colors[i*3+1] = col.g; colors[i*3+2] = col.b;
         }
         handGeom.setAttribute('position', new THREE.BufferAttribute(positions,3));
         handGeom.setAttribute('color', new THREE.BufferAttribute(colors,3));
-        const handMat = new THREE.PointsMaterial({ size: 0.18, vertexColors: true, transparent: true, blending: THREE.AdditiveBlending });
+        handColorsAttr = colors;
+        
+        // Target positions array
+        targetHandPositions = new Float32Array(HAND_COUNT * 3);
+        for(let i=0; i<HAND_COUNT*3; i++) targetHandPositions[i] = positions[i];
+        
+        // SHADER MATERIAL (GLASSY & SOFT GLOW) dari kode lo
+        const handMat = new THREE.ShaderMaterial({
+            transparent: true,
+            blending: THREE.AdditiveBlending,
+            vertexShader: `
+                attribute vec3 color;
+                varying vec3 vColor;
+                void main() {
+                    vColor = color;
+                    vec4 mvPos = modelViewMatrix * vec4(position, 1.0);
+                    gl_PointSize = 7.0 * (250.0 / -mvPos.z);
+                    gl_Position = projectionMatrix * mvPos;
+                }
+            `,
+            fragmentShader: `
+                varying vec3 vColor;
+                void main() {
+                    float d = distance(gl_PointCoord, vec2(0.5));
+                    if (d > 0.5) discard;
+                    float strength = pow(1.0 - d * 2.0, 2.5);
+                    gl_FragColor = vec4(vColor, strength * 0.35);
+                }
+            `
+        });
+        
         handParticles = new THREE.Points(handGeom, handMat);
         scene.add(handParticles);
     }
     
     function updateHandShape(type){
-        let targetPoints = [];
-        if(type === "fist"){
-            for(let i=0; i<HAND_COUNT; i++){ const rad = 0.8; targetPoints.push({ x: (Math.random()-0.5)*rad*2, y: (Math.random()-0.5)*rad*2, z: (Math.random()-0.5)*rad }); }
-        } else if(type === "open"){
-            for(let i=0; i<HAND_COUNT; i++){ const rad = 4.2; targetPoints.push({ x: (Math.random()-0.5)*rad*2, y: (Math.random()-0.5)*rad*2, z: (Math.random()-0.5)*rad }); }
-        } else if(type === "love"){
-            for(let i=0; i<HAND_COUNT; i++){ const p = loveTextPoints[i % loveTextPoints.length]; targetPoints.push({ x: p.x, y: p.y, z: (Math.random()-0.5)*0.5 }); }
-        } else if(type === "victory"){
-            for(let i=0; i<HAND_COUNT; i++){ const p = victoryTextPoints[i % victoryTextPoints.length]; targetPoints.push({ x: p.x, y: p.y, z: (Math.random()-0.5)*0.5 }); }
-        } else if(type === "horn"){
-            for(let i=0; i<HAND_COUNT; i++){ const p = hornSymbolPoints[i % hornSymbolPoints.length]; targetPoints.push({ x: p.x, y: p.y, z: (Math.random()-0.5)*0.5 }); }
+        for (let i = 0; i < HAND_COUNT; i++) {
+            if (type === "fist") {
+                // BOLA KRISTAL BERATURAN (SPHERE SHELL)
+                const phi = Math.acos(2 * Math.random() - 1);
+                const theta = Math.random() * Math.PI * 2;
+                const r = 3.5;
+                targetHandPositions[i * 3] = r * Math.sin(phi) * Math.cos(theta);
+                targetHandPositions[i * 3 + 1] = r * Math.sin(phi) * Math.sin(theta);
+                targetHandPositions[i * 3 + 2] = r * Math.cos(phi);
+            } else if (type === "open") {
+                // MENCAR TOTAL (CHAOS DUST)
+                targetHandPositions[i * 3] = (Math.random() - 0.5) * 50.0;
+                targetHandPositions[i * 3 + 1] = (Math.random() - 0.5) * 40.0;
+                targetHandPositions[i * 3 + 2] = (Math.random() - 0.5) * 35.0;
+            } else if (type === "love") {
+                const p = loveTextPoints[i % loveTextPoints.length];
+                const noise = (Math.random() - 0.5) * 0.4;
+                targetHandPositions[i * 3] = p.x + noise;
+                targetHandPositions[i * 3 + 1] = p.y + noise;
+                targetHandPositions[i * 3 + 2] = noise;
+            } else if (type === "victory") {
+                const p = victoryTextPoints[i % victoryTextPoints.length];
+                const noise = (Math.random() - 0.5) * 0.4;
+                targetHandPositions[i * 3] = p.x + noise;
+                targetHandPositions[i * 3 + 1] = p.y + noise;
+                targetHandPositions[i * 3 + 2] = noise;
+            } else if (type === "horn") {
+                const p = hornSymbolPoints[i % hornSymbolPoints.length];
+                const noise = (Math.random() - 0.5) * 0.4;
+                targetHandPositions[i * 3] = p.x + noise;
+                targetHandPositions[i * 3 + 1] = p.y + noise;
+                targetHandPositions[i * 3 + 2] = noise;
+            }
         }
-        const posAttr = handGeom.attributes.position.array;
-        for(let i=0; i<HAND_COUNT; i++){
-            const tp = targetPoints[i % targetPoints.length];
-            posAttr[i*3] = tp.x;
-            posAttr[i*3+1] = tp.y;
-            posAttr[i*3+2] = tp.z;
+    }
+    
+    function stepHandPhysics() {
+        if (!handModeActive || !handGeom) return;
+        
+        const currentPos = handGeom.attributes.position.array;
+        
+        for (let i = 0; i < HAND_COUNT * 3; i++) {
+            // LERP: transisi mengalir pelan kayak asap
+            currentPos[i] += (targetHandPositions[i] - currentPos[i]) * 0.04;
+            // Tambahkan vibrasi halus agar partikel terlihat hidup
+            currentPos[i] += (Math.random() - 0.5) * 0.015;
         }
+        
         handGeom.attributes.position.needsUpdate = true;
+        
+        // Pergerakan mengikuti tangan dengan efek Inertia (ketinggalan dikit)
+        const targetVector = new THREE.Vector3(handX, handY, 0);
+        handParticles.position.lerp(targetVector, 0.06);
     }
     
     function showGestureToast(msg){
@@ -246,14 +400,13 @@
                 
                 let shapeType = "fist";
                 let toastMsg = null;
-                if(isFist){ shapeType = "fist"; toastMsg = "✊🏻 BOLA PADAT"; }
-                else if(isOpen){ shapeType = "open"; toastMsg = "🖐🏻 MENCAR ACAK"; }
+                if(isFist){ shapeType = "fist"; toastMsg = "✊🏻 BOLA KRISTAL"; }
+                else if(isOpen){ shapeType = "open"; toastMsg = "🖐🏻 MENCAR TOTAL"; }
                 else if(isLovePinch){ shapeType = "love"; toastMsg = "🫰🏻 I LOVE BEBY"; }
                 else if(isVictory){ shapeType = "victory"; toastMsg = "✌🏻 U LOVE GAYIH TOO?"; }
                 else if(isHorn){ shapeType = "horn"; toastMsg = "🤘🏻 SIMBOL"; }
                 if(toastMsg) showGestureToast(toastMsg);
                 updateHandShape(shapeType);
-                if(handParticles){ handParticles.position.x = handX; handParticles.position.y = handY; }
             }
         });
         const cam = new Camera(video, { onFrame: async()=>{ await hands.send({image:video}); }, width:480, height:360 });
@@ -272,7 +425,10 @@
             if(sliderParticles) sliderParticles.visible = true;
             if(handParticles) handParticles.visible = false;
             if(handCameraInstance) handCameraInstance.stop();
+            if(symbolParticles) symbolParticles.visible = true;
             orbitControls.enabled = true;
+            camera.position.set(0, -15, 460);
+            orbitControls.target.set(0, 0, 0);
             document.getElementById('globalInfo').innerHTML = '✨ Tulip • Love • Random • Teks ✨';
         } else {
             handModeActive = true;
@@ -283,10 +439,14 @@
             document.getElementById('handInfo').style.display = 'block';
             if(sliderParticles) sliderParticles.visible = false;
             if(handParticles) handParticles.visible = true;
+            if(symbolParticles) symbolParticles.visible = false;
             orbitControls.enabled = true;
+            camera.position.set(0, 0, 12);
+            orbitControls.target.set(0, 0, 0);
             startHandTracking();
             document.getElementById('globalInfo').innerHTML = '✋ TANGAN MODE — gerakan tangan ubah bentuk ✨';
         }
+        orbitControls.update();
     }
     
     // ========== SLIDER MODE GEOMETRY ==========
@@ -364,7 +524,7 @@
         scene.add(sliderParticles);
     }
     
-    // ========== DB (LOAD ONLY, NO UPLOAD BUTTONS) ==========
+    // ========== DB (LOAD ONLY) ==========
     async function openDB(){
         return new Promise((resolve) => {
             const request = indexedDB.open('Final4StageDB', 1);
@@ -497,6 +657,10 @@
             shaderMat.uniforms.uExplodeTime.value = explodeT;
             if(Math.abs(explodeTarget - explodeT) < 0.05){ explodeT = explodeTarget; isExploding = false; }
         }
+        
+        // HAND MODE PHYSICS (STEP)
+        stepHandPhysics();
+        
         if(sliderParticles && !handModeActive){
             const posAttr = sliderParticles.geometry.attributes.position.array;
             for(let i=0;i<PARTICLE_COUNT;i++){
@@ -511,15 +675,13 @@
             }
             sliderParticles.geometry.attributes.position.needsUpdate = true;
             if(document.getElementById('lockRotation').checked) sliderParticles.rotation.y += 0.0025;
-        } else if(handModeActive && handParticles){
-            const arr = handGeom.attributes.position.array;
-            for(let i=0;i<HAND_COUNT;i++){
-                arr[i*3] += (Math.sin(animTime*1.3 + i)*0.008);
-                arr[i*3+1] += (Math.cos(animTime*1.1 + i)*0.008);
-            }
-            handGeom.attributes.position.needsUpdate = true;
-            handParticles.rotation.z = Math.sin(animTime*0.7)*0.05;
         }
+        
+        // Update simbol floating (hanya di slider mode)
+        if(symbolParticles && !handModeActive){
+            if(symbolParticles.material) symbolParticles.material.uniforms.uTime.value = animTime;
+        }
+        
         if(starField) starField.rotation.y += 0.0004;
         orbitControls.update();
         renderer.render(scene,camera);
