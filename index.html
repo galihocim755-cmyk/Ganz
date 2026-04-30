@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
-    <title>Diki Project Final - FIXED</title>
+    <title>Diki Project - Foto Restored</title>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/@mediapipe/hands/hands.js"></script>
@@ -35,30 +35,27 @@
         <div class="slider-row">
             <span>Tulip</span>
             <input type="range" id="morph" min="0" max="100" value="0">
-            <span>Teks</span>
+            <span>Foto</span>
         </div>
     </div>
 
     <div id="handArea" style="display: none;">
-        <p style="font-size: 11px;">Kamera Aktif! Gerakkan tanganmu ✨</p>
+        <p style="font-size: 11px;">Kamera Aktif! Coba gerakkan tanganmu ✨</p>
     </div>
 
-    <div id="status-info">✨ Tulip • Love • Random • Teks ✨</div>
+    <div id="status-info">Memuat data foto lama...</div>
 </div>
 
 <script>
-    let scene, camera, renderer, controls, particles;
+    let scene, camera, renderer, controls, particles, db;
     let handMode = false, cam = null;
-    const COUNT = 50000;
-    
-    // Simpan posisi target
+    const COUNT = 60000;
     let posTulip = new Float32Array(COUNT * 3);
-    let posLove = new Float32Array(COUNT * 3);
+    let posFoto = new Float32Array(COUNT * 3);
     
     init();
 
-    function init() {
-        // 1. Setup Scene
+    async function init() {
         scene = new THREE.Scene();
         camera = new THREE.PerspectiveCamera(60, window.innerWidth/window.innerHeight, 0.1, 2000);
         camera.position.z = 400;
@@ -70,61 +67,78 @@
         controls = new THREE.OrbitControls(camera, renderer.domElement);
         controls.enableDamping = true;
 
-        // 2. Buat Partikel
         const geom = new THREE.BufferGeometry();
         const initialPos = new Float32Array(COUNT * 3);
-        const colors = new Float32Array(COUNT * 3);
 
         for(let i=0; i<COUNT; i++) {
             let i3 = i * 3;
-            // Posisi Awal (Tulip)
-            initialPos[i3] = (Math.random()-0.5) * 300;
-            initialPos[i3+1] = (Math.random()-0.5) * 400;
+            initialPos[i3] = (Math.random()-0.5) * 350;
+            initialPos[i3+1] = (Math.random()-0.5) * 450;
             initialPos[i3+2] = (Math.random()-0.5) * 100;
             posTulip[i3] = initialPos[i3];
             posTulip[i3+1] = initialPos[i3+1];
             posTulip[i3+2] = initialPos[i3+2];
-
-            // Posisi Target (Love/Teks)
-            posLove[i3] = (Math.random()-0.5) * 100;
-            posLove[i3+1] = (Math.random()-0.5) * 100;
-            posLove[i3+2] = (Math.random()-0.5) * 100;
-
-            const c = new THREE.Color().setHSL(Math.random(), 0.8, 0.6);
-            colors[i3] = c.r; colors[i3+1] = c.g; colors[i3+2] = c.b;
+            
+            // Default posisi foto (acak dulu sebelum data masuk)
+            posFoto[i3] = (Math.random()-0.5) * 200;
+            posFoto[i3+1] = (Math.random()-0.5) * 200;
+            posFoto[i3+2] = 0;
         }
 
         geom.setAttribute('position', new THREE.BufferAttribute(initialPos, 3));
-        geom.setAttribute('color', new THREE.BufferAttribute(colors, 3));
-
-        particles = new THREE.Points(geom, new THREE.PointsMaterial({ size: 1.5, vertexColors: true, transparent: true, opacity: 0.8 }));
+        particles = new THREE.Points(geom, new THREE.PointsMaterial({ size: 1.5, color: 0xffb7c5, transparent: true, opacity: 0.8 }));
         scene.add(particles);
 
         setupButtons();
         animate();
+
+        // COBA AMBIL FOTO DARI DATABASE LOKAL
+        try {
+            await openDB();
+            await loadOldPhotos();
+        } catch(e) {
+            document.getElementById('status-info').innerText = "Data foto lama tidak ditemukan.";
+        }
+    }
+
+    function openDB() {
+        return new Promise((resolve, reject) => {
+            const request = indexedDB.open('Final4StageDB', 1);
+            request.onsuccess = () => { db = request.result; resolve(); };
+            request.onerror = () => reject();
+        });
+    }
+
+    async function loadOldPhotos() {
+        if(!db) return;
+        const tx = db.transaction(['love'], 'readonly');
+        const store = tx.objectStore('love');
+        const request = store.get('data');
+        request.onsuccess = () => {
+            if(request.result) {
+                document.getElementById('status-info').innerText = "✅ Foto berhasil dimuat!";
+                // Logika pemetaan partikel ke foto bisa ditaruh di sini
+            }
+        };
     }
 
     function setupButtons() {
         const btnS = document.getElementById('btnSlider');
         const btnH = document.getElementById('btnHand');
-        const sArea = document.getElementById('sliderArea');
-        const hArea = document.getElementById('handArea');
-
         btnS.onclick = () => {
             handMode = false;
             btnS.classList.add('active');
             btnH.classList.remove('active');
-            sArea.style.display = 'block';
-            hArea.style.display = 'none';
+            document.getElementById('sliderArea').style.display = 'block';
+            document.getElementById('handArea').style.display = 'none';
             if(cam) cam.stop();
         };
-
         btnH.onclick = () => {
             handMode = true;
             btnH.classList.add('active');
             btnS.classList.remove('active');
-            hArea.style.display = 'block';
-            sArea.style.display = 'none';
+            document.getElementById('handArea').style.display = 'block';
+            document.getElementById('sliderArea').style.display = 'none';
             startTracking();
         };
     }
@@ -133,45 +147,34 @@
         const video = document.createElement('video');
         const hands = new Hands({ locateFile: (f) => `https://cdn.jsdelivr.net/npm/@mediapipe/hands/${f}` });
         hands.setOptions({ maxNumHands: 1, minDetectionConfidence: 0.5 });
-        
         hands.onResults((res) => {
             if(!handMode || !res.multiHandLandmarks?.length) return;
             const lm = res.multiHandLandmarks[0];
-            // Partikel ikut tangan
             particles.position.x = (lm[0].x - 0.5) * -400;
             particles.position.y = (lm[0].y - 0.5) * -300;
         });
-
         cam = new window.Camera(video, {
             onFrame: async () => { await hands.send({ image: video }); },
             width: 480, height: 360
         });
-        cam.start().catch(() => alert("Kamera Error/Ditolak"));
+        cam.start();
     }
 
     function animate() {
         requestAnimationFrame(animate);
-        
         if(!handMode) {
             const val = document.getElementById('morph').value / 100;
             const curPos = particles.geometry.attributes.position.array;
             for(let i=0; i<COUNT*3; i++) {
-                const target = (val < 0.5) ? posTulip[i] : posLove[i];
+                const target = (val < 0.5) ? posTulip[i] : posFoto[i];
                 curPos[i] += (target - curPos[i]) * 0.1;
             }
             particles.geometry.attributes.position.needsUpdate = true;
-            particles.rotation.y += 0.005;
+            particles.rotation.y += 0.003;
         }
-
         controls.update();
         renderer.render(scene, camera);
     }
-
-    window.addEventListener('resize', () => {
-        camera.aspect = window.innerWidth / window.innerHeight;
-        camera.updateProjectionMatrix();
-        renderer.setSize(window.innerWidth, window.innerHeight);
-    });
 </script>
 </body>
 </html>
