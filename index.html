@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
-    <title>Dual Mode: Slider + Hand Tracking (Fluid Effect - DIPERCEPAT)</title>
+    <title>Dual Mode: Slider + Hand Tracking (UPLOAD FOTO TERSEMBUNYI + HAND CEPAT)</title>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/@mediapipe/hands/hands.js"></script>
@@ -32,6 +32,7 @@
         .gesture-toast { position: absolute; top: 20%; left: 50%; transform: translate(-50%, -50%); background: rgba(0,0,0,0.6); backdrop-filter: blur(12px);
           padding: 6px 18px; border-radius: 40px; color: #ffb7c5; font-size: 16px; font-weight: bold; z-index: 10001; white-space: nowrap; pointer-events: none; border: 1px solid rgba(255,105,180,0.5); }
         @media (max-width: 550px) { .mode-btn { font-size: 10px; } .btn { font-size: 9px; } .gesture-toast { font-size: 12px; } }
+        #hidden-inputs { display: none; }
     </style>
 </head>
 <body>
@@ -42,7 +43,7 @@
     </div>
     <div class="row">
         <span style="font-size:11px">🔄 <input type="checkbox" id="lockRotation" checked></span>
-        <input type="range" id="morphSlider" min="0" max="50" value="50" step="1">
+        <input type="range" id="morphSlider" min="0" max="50" value="0" step="1">
         <button id="resetExplodeBtn" class="btn btn-purple" style="font-size:14px; padding:4px 12px;">↻</button>
     </div>
     <div class="btn-group">
@@ -60,12 +61,16 @@
     <div class="info-text" id="globalInfo">✨ Tulip • Love • Random • Teks ✨</div>
 </div>
 <div id="gestureToast" class="gesture-toast" style="display:none;">✨</div>
+<div id="hidden-inputs">
+    <input type="file" id="inputHati" accept="image/*" style="display:none">
+    <input type="file" id="inputRatusan" accept="image/*" multiple style="display:none">
+</div>
 
 <script>
     // ========== SLIDER MODE ==========
     let scene, camera, renderer, sliderParticles, orbitControls, starField;
     const PARTICLE_COUNT = 70000;
-    let currentMorph = 50;
+    let currentMorph = 0;
     let clock = new THREE.Clock();
     let shaderMat = null;
     
@@ -79,26 +84,25 @@
     let handModeActive = false;
     let handParticles = null;
     let handGeom = null;
-    let handColorsAttr = null;
     const HAND_COUNT = 8000;
     let targetHandPositions = null;
     let handX = 0, handY = 0;
     let gestureTimer = null;
     let handCameraInstance = null;
     
-    // FLUID EFFECT VARIABLES - DIPERCEPAT
+    // FLUID EFFECT VARIABLES - CEPAT
     let particleVelocities = [];
-    let prevHandPositions = [];
     let lastHandX = 0, lastHandY = 0, lastHandTime = 0;
     let handVelocity = 0;
     
-    // Shape data
-    let loveTextPoints = [], loveUPoints = [], victoryTextPoints = [], hornSymbolPoints = [], phallusPoints = [];
+    // Shape data hand
+    let loveTextPoints = [], loveUPoints = [], victoryTextPoints = [], hornSymbolPoints = [], phallusPoints = [], facePoints = [];
     
-    // ========== SIMBOL FLOATING (SLIDER MODE ONLY) ==========
+    // ========== SIMBOL FLOATING ==========
     let symbolParticles = null;
-    let symbolTime = 0;
+    let animTime = 0;
     
+    // ========== UPLOAD FOTO (Tersembunyi) ==========
     let db = null;
     
     setTimeout(() => {
@@ -107,6 +111,7 @@
     }, 100);
     
     async function initApp(){
+        // Buka IndexedDB untuk upload foto tersembunyi
         await openDB();
         await loadFromDB();
         
@@ -137,19 +142,90 @@
         handParticles.visible = false;
         document.getElementById('handInfo').style.display = 'none';
         
-        // EVENTS
+        // EVENTS (tanpa tombol upload di UI, tapi tetap ada fungsi upload lewat console)
         document.getElementById('modeSliderBtn').onclick = () => switchMode('slider');
         document.getElementById('modeHandBtn').onclick = () => switchMode('hand');
-        document.getElementById('explodeBtn').onclick = () => { if(currentMorph>=37) { explodeTarget=50; isExploding=true; } else showTempMsg('Geser ke stage TEKS (37-50) dulu!'); };
+        document.getElementById('explodeBtn').onclick = () => { if(currentMorph>=37) { explodeTarget=1; isExploding=true; } else showTempMsg('Geser ke stage TEKS (37-50) dulu!'); };
         document.getElementById('resetExplodeBtn').onclick = () => { explodeTarget=0; isExploding=true; };
         
         const morphSlider = document.getElementById('morphSlider');
-        morphSlider.oninput = (e) => { currentMorph = parseFloat(e.target.value); if(shaderMat) shaderMat.uniforms.uMix.value = currentMorph; if(currentMorph<37){ explodeTarget=0; isExploding=false; shaderMat.uniforms.uExplodeTime.value=0; } };
+        morphSlider.oninput = (e) => { currentMorph = parseFloat(e.target.value); if(shaderMat) shaderMat.uniforms.uMix.value = currentMorph; if(currentMorph<37){ explodeTarget=0; isExploding=false; if(shaderMat) shaderMat.uniforms.uExplodeTime.value=0; } };
         const sizeSlider = document.getElementById('sizeSlider');
         sizeSlider.oninput = () => { currentSizePercent = parseFloat(sizeSlider.value); document.getElementById('sizeVal').innerText=Math.floor(currentSizePercent)+'%'; if(shaderMat) shaderMat.uniforms.uSizeScale.value = currentSizePercent/100; };
         sizeSlider.oninput();
         
-        morphSlider.value = 0; currentMorph = 0; if(shaderMat) shaderMat.uniforms.uMix.value = 0;
+        // Fungsi upload via console (tersembunyi)
+        window.uploadHati = (file) => {
+            const reader = new FileReader();
+            reader.onload = (ev) => {
+                const img = new Image();
+                img.onload = () => {
+                    const tex = new THREE.Texture(img);
+                    tex.needsUpdate = true;
+                    if(shaderMat) {
+                        shaderMat.uniforms.uTexLove.value = tex;
+                        shaderMat.uniforms.uHasLove.value = 1.0;
+                    }
+                    // Simpan ke IndexedDB
+                    if(db) {
+                        const tx = db.transaction(['love'], 'readwrite');
+                        tx.objectStore('love').put({ id: 'data', image: ev.target.result });
+                        tx.commit();
+                    }
+                    showTempMsg('✅ Foto hati terupload!');
+                };
+                img.src = ev.target.result;
+            };
+            reader.readAsDataURL(file);
+        };
+        
+        window.uploadRatusan = async (files) => {
+            if(files.length === 0) return;
+            showTempMsg(`Memuat ${files.length} foto...`);
+            const atlasSize = 2048;
+            const cols = Math.ceil(Math.sqrt(files.length));
+            const rows = Math.ceil(files.length / cols);
+            const cellW = Math.floor(atlasSize / cols);
+            const cellH = Math.floor(atlasSize / rows);
+            const canvas = document.createElement('canvas');
+            canvas.width = atlasSize;
+            canvas.height = atlasSize;
+            const ctx = canvas.getContext('2d');
+            ctx.fillStyle = '#000000';
+            ctx.fillRect(0, 0, atlasSize, atlasSize);
+            
+            const images = [];
+            for(let i = 0; i < files.length; i++) {
+                const url = URL.createObjectURL(files[i]);
+                const img = await new Promise((res) => {
+                    const im = new Image();
+                    im.onload = () => { res(im); URL.revokeObjectURL(url); };
+                    im.src = url;
+                });
+                images.push(img.src);
+                const col = i % cols;
+                const row = Math.floor(i / cols);
+                ctx.drawImage(img, col * cellW, row * cellH, cellW, cellH);
+            }
+            
+            const atlasTex = new THREE.CanvasTexture(canvas);
+            atlasTex.needsUpdate = true;
+            if(shaderMat) {
+                shaderMat.uniforms.uTexTeks.value = atlasTex;
+                shaderMat.uniforms.uHasTeks.value = 1.0;
+                shaderMat.uniforms.uAtlasSize.value = cols;
+            }
+            
+            // Simpan ke IndexedDB
+            if(db) {
+                const tx = db.transaction(['teks'], 'readwrite');
+                tx.objectStore('teks').put({ id: 'data', images: images });
+                tx.commit();
+            }
+            showTempMsg(`✅ ${files.length} foto siap untuk mode TEKS!`);
+        };
+        
+        console.log('💾 Upload foto via console: uploadHati(file) atau uploadRatusan([file1, file2, ...])');
     }
     
     async function buildSymbols(){
@@ -233,7 +309,7 @@
     }
     
     async function buildHandShapes(){
-        // Bentuk awal ( ͜.人 ͜. ) - wajah dengan tangan
+        // Bentuk awal ( ͜.人 ͜. )
         const faceCanvas = document.createElement('canvas');
         faceCanvas.width = 400; faceCanvas.height = 200;
         const faceCtx = faceCanvas.getContext('2d');
@@ -243,10 +319,9 @@
         faceCtx.textBaseline = 'middle';
         faceCtx.fillText('( ͜.人 ͜.)', 200, 100);
         const faceData = faceCtx.getImageData(0, 0, 400, 200).data;
-        let facePoints = [];
         for(let y=0; y<200; y+=2) for(let x=0; x<400; x+=2) if(faceData[(y*400+x)*4+3] > 100) facePoints.push({ x: (x-200)/20, y: (100-y)/20 });
         
-        // SIMBOL 𓂺 (phallus)
+        // 𓂺
         const phallusCanvas = document.createElement('canvas');
         phallusCanvas.width = 200; phallusCanvas.height = 300;
         const phallusCtx = phallusCanvas.getContext('2d');
@@ -258,7 +333,7 @@
         const phallusData = phallusCtx.getImageData(0, 0, 200, 300).data;
         for(let y=0; y<300; y+=2) for(let x=0; x<200; x+=2) if(phallusData[(y*200+x)*4+3] > 100) phallusPoints.push({ x: (x-100)/12, y: (150-y)/12 });
         
-        // Teks "I LOVE U BBY 💋"
+        // I LOVE U BBY 💋
         const loveUTextCanvas = document.createElement('canvas');
         loveUTextCanvas.width = 800; loveUTextCanvas.height = 200;
         const loveUTextCtx = loveUTextCanvas.getContext('2d');
@@ -306,7 +381,7 @@
         const hornData = hornCtx.getImageData(0, 0, 600, 300).data;
         for(let y=0; y<300; y+=3) for(let x=0; x<600; x+=3) if(hornData[(y*600+x)*4+3] > 100) hornSymbolPoints.push({ x: (x-300)/25, y: (150-y)/25 });
         
-        // init hand particles - 8000 partikel dengan bentuk awal wajah
+        // init hand particles
         handGeom = new THREE.BufferGeometry();
         const positions = new Float32Array(HAND_COUNT*3);
         const colors = new Float32Array(HAND_COUNT*3);
@@ -321,18 +396,14 @@
         }
         handGeom.setAttribute('position', new THREE.BufferAttribute(positions,3));
         handGeom.setAttribute('color', new THREE.BufferAttribute(colors,3));
-        handColorsAttr = colors;
         
         targetHandPositions = new Float32Array(HAND_COUNT * 3);
         for(let i=0; i<HAND_COUNT*3; i++) targetHandPositions[i] = positions[i];
         
-        // Inisialisasi fluid effect variables
         for(let i = 0; i < HAND_COUNT; i++) {
             particleVelocities.push(new THREE.Vector3(0, 0, 0));
-            prevHandPositions.push(new THREE.Vector3(0, 0, 0));
         }
         
-        // SHADER MATERIAL - ukuran partikel FIXED 2.5
         const handMat = new THREE.ShaderMaterial({
             transparent: true,
             blending: THREE.NormalBlending,
@@ -360,28 +431,26 @@
         scene.add(handParticles);
     }
     
-    // FLUID EFFECT UPDATE SHAPE - DIPERCEPAT
     function updateHandShapeFluid(type, handVel) {
         const targetPos = targetHandPositions;
         const currentPos = handGeom.attributes.position.array;
-        // Kecepatan lebih tinggi: pullStrength lebih besar
         const pullStrength = 0.12 + Math.min(0.15, (handVel || 0.5) * 0.1);
         
         for (let i = 0; i < HAND_COUNT; i++) {
             let tx, ty, tz;
             
-            if (type === "fist") { // simbol 𓂺
+            if (type === "fist") {
                 const p = phallusPoints[i % phallusPoints.length];
                 tx = p.x + (Math.random() - 0.5) * 1.0;
                 ty = p.y + (Math.random() - 0.5) * 1.0;
                 tz = (Math.random() - 0.5) * 6;
             } 
-            else if (type === "open") { // mencar luas banget
+            else if (type === "open") {
                 tx = (Math.random() - 0.5) * 130;
                 ty = (Math.random() - 0.5) * 110;
                 tz = (Math.random() - 0.5) * 100;
             } 
-            else if (type === "middle") { // teks "I LOVE U BBY 💋"
+            else if (type === "middle") {
                 const p = loveUPoints[i % loveUPoints.length];
                 tx = p.x + (Math.random() - 0.5) * 1.0;
                 ty = p.y + (Math.random() - 0.5) * 1.0;
@@ -393,39 +462,33 @@
                 ty = p.y + (Math.random() - 0.5) * 1.0;
                 tz = (Math.random() - 0.5) * 6;
             } 
-            else { // horn / symbol
+            else {
                 const p = hornSymbolPoints[i % hornSymbolPoints.length];
                 tx = p.x + (Math.random() - 0.5) * 1.0;
                 ty = p.y + (Math.random() - 0.5) * 1.0;
                 tz = (Math.random() - 0.5) * 6;
             }
             
-            // Simpan posisi lama
             const oldX = currentPos[i*3];
             const oldY = currentPos[i*3+1];
             const oldZ = currentPos[i*3+2];
             
-            // Update velocity (efek inersia) - lebih cepat
             particleVelocities[i].x += (tx - oldX) * 0.025;
             particleVelocities[i].y += (ty - oldY) * 0.025;
             particleVelocities[i].z += (tz - oldZ) * 0.025;
             
-            // Damping lebih kecil biar cepet
             particleVelocities[i].x *= 0.92;
             particleVelocities[i].y *= 0.92;
             particleVelocities[i].z *= 0.92;
             
-            // Posisi baru dengan velocity
             let newX = oldX + particleVelocities[i].x;
             let newY = oldY + particleVelocities[i].y;
             let newZ = oldZ + particleVelocities[i].z;
             
-            // Tarik ke target (lebih kuat)
             newX += (tx - newX) * pullStrength;
             newY += (ty - newY) * pullStrength;
             newZ += (tz - newZ) * pullStrength;
             
-            // Simpan ke target array
             targetPos[i*3] = newX;
             targetPos[i*3+1] = newY;
             targetPos[i*3+2] = newZ;
@@ -435,7 +498,6 @@
     function stepHandPhysics() {
         if (!handModeActive || !handGeom) return;
         const currentPos = handGeom.attributes.position.array;
-        // Lebih cepat: lerp 0.15 (sebelumnya 0.06)
         for (let i = 0; i < HAND_COUNT * 3; i++) {
             currentPos[i] += (targetHandPositions[i] - currentPos[i]) * 0.15;
             currentPos[i] += (Math.random() - 0.5) * 0.02;
@@ -461,9 +523,8 @@
             if(!handModeActive) return;
             if(res.multiHandLandmarks && res.multiHandLandmarks.length){
                 const lm = res.multiHandLandmarks[0];
-                const wrist = lm[0], indexTip = lm[8], midTip = lm[12], ringTip = lm[16], pinkyTip = lm[20], thumbTip = lm[4];
+                const wrist = lm[0], indexTip = lm[8], midTip = lm[12], ringTip = lm[16], pinkyTip = lm[20];
                 
-                // Hitung kecepatan tangan
                 const now = Date.now();
                 const dt = Math.min(0.05, (now - lastHandTime) / 1000);
                 const newHandX = (wrist.x - 0.5)*6;
@@ -539,6 +600,7 @@
     }
     
     async function buildShapes(){
+        // Tulip shape
         const tulipCanvas = document.createElement('canvas'); tulipCanvas.width=400; tulipCanvas.height=400;
         const tCtx = tulipCanvas.getContext('2d'); tCtx.fillStyle='white'; tCtx.font='350px serif'; tCtx.textAlign='center'; tCtx.textBaseline='middle'; tCtx.fillText('🌷',200,200);
         const tulipData = tCtx.getImageData(0,0,400,400).data;
@@ -546,6 +608,7 @@
         for(let y=0;y<400;y++) for(let x=0;x<400;x++) if(tulipData[(y*400+x)*4+3]>100) tulipPts.push({x:(x-200)*0.85, y:(200-y)*0.85});
         const tulipColors = tulipPts.map(p => p.y > -20 ? {r:1,g:0.1,b:0.2} : {r:0.1,g:0.7,b:0.2});
         
+        // Heart shape
         let minX=Infinity,maxX=-Infinity,minY=Infinity,maxY=-Infinity;
         let heartSamples=[];
         for(let i=0;i<50000;i++){
@@ -557,9 +620,11 @@
         }
         minX-=25; maxX+=25; minY-=25; maxY+=25; const rangeX=maxX-minX, rangeY=maxY-minY;
         
+        // Random points
         let randomPts=[];
         for(let i=0;i<PARTICLE_COUNT;i++) randomPts.push({x:(Math.random()-0.5)*340, y:(Math.random()-0.5)*280});
         
+        // Text points
         const txtCanvas = document.createElement('canvas'); txtCanvas.width=1200; txtCanvas.height=400;
         const txtCtx = txtCanvas.getContext('2d'); txtCtx.fillStyle='white'; txtCtx.font='bold 95px Arial'; txtCtx.textAlign='center';
         txtCtx.fillText('GAYIH SAYANG',600,150); txtCtx.fillText('BEBY & LAIQA ❤️',600,300);
@@ -758,14 +823,13 @@
         }, dur);
     }
     
-    let animTime = 0;
     function animateLoop(){
         requestAnimationFrame(animateLoop);
         animTime += 0.016;
         if(shaderMat) shaderMat.uniforms.uTime.value = animTime;
         if(isExploding){
             explodeT += (explodeTarget - explodeT) * 0.07;
-            shaderMat.uniforms.uExplodeTime.value = explodeT;
+            if(shaderMat) shaderMat.uniforms.uExplodeTime.value = explodeT;
             if(Math.abs(explodeTarget - explodeT) < 0.05){ explodeT = explodeTarget; isExploding = false; }
         }
         
