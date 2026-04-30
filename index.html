@@ -147,17 +147,17 @@
     }
     
     async function buildSymbols(){
-        // 5000 simbol dari kode yang lo kasih (diperkecil)
+        // 5000 simbol (diperkecil ukurannya)
         const symbols = ['♬', '♪', '𖹭', 'ʚɞ', '⭑', 'ूाीू'];
         const symbolCount = 5000;
         
-        // Canvas texture atlas
+        // Canvas texture atlas (ukuran font lebih kecil)
         const canvas = document.createElement('canvas');
         canvas.width = 2048;
         canvas.height = 256;
         const ctx = canvas.getContext('2d');
         ctx.fillStyle = 'white';
-        ctx.font = 'bold 150px "Segoe UI", "Arial Unicode MS"';
+        ctx.font = 'bold 100px "Segoe UI", "Arial Unicode MS"'; // DARI 150px JADI 100px
         ctx.textAlign = 'center';
         ctx.textBaseline = 'middle';
         symbols.forEach((s, i) => {
@@ -171,7 +171,6 @@
         const symIdxArr = new Float32Array(symbolCount);
         
         for(let i=0; i<symbolCount; i++){
-            // Sebaran luas
             positions[i*3] = (Math.random() - 0.5) * 8000;
             positions[i*3+1] = (Math.random() - 0.5) * 6000;
             positions[i*3+2] = (Math.random() - 0.5) * 3000;
@@ -205,8 +204,8 @@
                     pos.y += mod(uTime * speed + (aRandom * 6000.0), 6000.0) - 3000.0;
                     pos.x += sin(uTime * 0.2 + aRandom * 20.0) * 200.0;
                     vec4 mvPos = modelViewMatrix * vec4(pos, 1.0);
-                    // UKURAN LEBIH KECIL (dari 22-42 jadi 14-26)
-                    gl_PointSize = (14.0 + aRandom * 12.0) * (1500.0 / -mvPos.z);
+                    // UKURAN LEBIH KECIL (8-16 pixel)
+                    gl_PointSize = (8.0 + aRandom * 8.0) * (1500.0 / -mvPos.z);
                     gl_Position = projectionMatrix * mvPos;
                     vAlpha = smoothstep(-3000.0, -2000.0, pos.y) * smoothstep(3000.0, 2000.0, pos.y);
                 }
@@ -287,7 +286,7 @@
         targetHandPositions = new Float32Array(HAND_COUNT * 3);
         for(let i=0; i<HAND_COUNT*3; i++) targetHandPositions[i] = positions[i];
         
-        // SHADER MATERIAL (GLASSY & SOFT GLOW) dari kode lo
+        // SHADER MATERIAL (GLASSY & SOFT GLOW)
         const handMat = new THREE.ShaderMaterial({
             transparent: true,
             blending: THREE.AdditiveBlending,
@@ -319,7 +318,6 @@
     function updateHandShape(type){
         for (let i = 0; i < HAND_COUNT; i++) {
             if (type === "fist") {
-                // BOLA KRISTAL BERATURAN (SPHERE SHELL)
                 const phi = Math.acos(2 * Math.random() - 1);
                 const theta = Math.random() * Math.PI * 2;
                 const r = 3.5;
@@ -327,7 +325,6 @@
                 targetHandPositions[i * 3 + 1] = r * Math.sin(phi) * Math.sin(theta);
                 targetHandPositions[i * 3 + 2] = r * Math.cos(phi);
             } else if (type === "open") {
-                // MENCAR TOTAL (CHAOS DUST)
                 targetHandPositions[i * 3] = (Math.random() - 0.5) * 50.0;
                 targetHandPositions[i * 3 + 1] = (Math.random() - 0.5) * 40.0;
                 targetHandPositions[i * 3 + 2] = (Math.random() - 0.5) * 35.0;
@@ -359,15 +356,12 @@
         const currentPos = handGeom.attributes.position.array;
         
         for (let i = 0; i < HAND_COUNT * 3; i++) {
-            // LERP: transisi mengalir pelan kayak asap
             currentPos[i] += (targetHandPositions[i] - currentPos[i]) * 0.04;
-            // Tambahkan vibrasi halus agar partikel terlihat hidup
             currentPos[i] += (Math.random() - 0.5) * 0.015;
         }
         
         handGeom.attributes.position.needsUpdate = true;
         
-        // Pergerakan mengikuti tangan dengan efek Inertia (ketinggalan dikit)
         const targetVector = new THREE.Vector3(handX, handY, 0);
         handParticles.position.lerp(targetVector, 0.06);
     }
@@ -516,8 +510,36 @@
         
         shaderMat = new THREE.ShaderMaterial({
             uniforms: { uTexLove:{value:defaultLoveTex}, uTexTeks:{value:defaultLoveTex}, uHasLove:{value:1.0}, uHasTeks:{value:0.0}, uRandomEffect:{value:0.0}, uMix:{value:0.0}, uAtlasSize:{value:1.0}, uTime:{value:0}, uExplodeTime:{value:0}, uSizeScale:{value:0.15}, uCircleTex:{value:circleTex} },
-            vertexShader: `attribute vec2 uvLove; attribute float atlasIndex; attribute vec3 randomColor; attribute vec3 teksV; attribute vec3 teksFloat; attribute vec3 tulipColor; varying vec2 vUvLove; varying float vIdx; varying vec3 vRandomColor; varying vec3 vTulipColor; uniform float uMix; uniform float uTime; uniform float uRandomEffect; uniform float uExplodeTime; uniform float uAtlasSize; uniform float uSizeScale; void main(){ vUvLove=uvLove; vIdx=atlasIndex; if(uRandomEffect>0.5) vRandomColor=randomColor; else vRandomColor=vec3(0.65); vTulipColor=tulipColor; vec3 pos; float stage=uMix*2.0; if(stage<=25.0){ pos=position; pos.x+=sin(uTime*0.6+position.y*0.04)*2.0; pos.y+=cos(uTime*0.5+position.x*0.04)*2.0; } else if(stage<=50.0){ pos=position; pos.x+=sin(uTime*0.7+position.y*0.03)*1.5; pos.y+=cos(uTime*0.6+position.x*0.03)*1.5; } else if(stage<=75.0){ pos=position; pos.x+=sin(uTime*0.8+position.y*0.02)*2.5; pos.y+=cos(uTime*0.7+position.x*0.02)*2.5; } else{ vec3 orig=position; vec3 expOff=teksV*uExplodeTime*2.8; vec3 floatOff=vec3(sin(uTime*0.8+teksFloat.x*8.0)*2.5, cos(uTime*0.6+teksFloat.y*8.0)*2.5, sin(uTime*0.7+teksFloat.z*8.0)*2.5); pos=orig+expOff+floatOff; } vec4 mvPos=modelViewMatrix*vec4(pos,1.0); gl_PointSize=(2.0+uSizeScale*6.0)*(450.0/-mvPos.z); gl_Position=projectionMatrix*mvPos; }`,
-            fragmentShader: `uniform sampler2D uTexLove; uniform sampler2D uTexTeks; uniform sampler2D uCircleTex; uniform float uHasLove; uniform float uHasTeks; uniform float uMix; uniform float uAtlasSize; uniform float uTime; uniform float uRandomEffect; varying vec2 vUvLove; varying float vIdx; varying vec3 vRandomColor; varying vec3 vTulipColor; void main(){ vec2 coord=gl_PointCoord; if(length(coord-vec2(0.5))>0.5) discard; vec4 texCol=texture2D(uCircleTex,coord); if(texCol.a<0.5) discard; vec4 col; float stage=uMix*2.0; if(stage<=25.0) col=vec4(vTulipColor,1.0); else if(stage<=50.0){ if(uHasLove>0.5) col=texture2D(uTexLove,vUvLove); else col=vec4(1.0,0.3,0.3,1.0); } else if(stage<=75.0){ if(uRandomEffect>0.5) col=vec4(vRandomColor,1.0); else col=vec4(0.65,0.65,0.65,1.0); } else{ if(uHasTeks>0.5){ float total=uAtlasSize*uAtlasSize; float idx=floor(vIdx*total); vec2 grid=vec2(mod(idx,uAtlasSize),floor(idx/uAtlasSize)); vec2 uv=(vec2(coord.x,1.0-coord.y)+grid)/uAtlasSize; col=texture2D(uTexTeks,uv);} else col=vec4(1.0,1.0,1.0,1.0); } col.rgb+=fract(sin(coord.x*60.0+coord.y*40.0+uTime)*437.58)*0.06; gl_FragColor=col; }`,
+            vertexShader: `
+                attribute vec2 uvLove; attribute float atlasIndex; attribute vec3 randomColor; attribute vec3 teksV; attribute vec3 teksFloat; attribute vec3 tulipColor;
+                varying vec2 vUvLove; varying float vIdx; varying vec3 vRandomColor; varying vec3 vTulipColor;
+                uniform float uMix; uniform float uTime; uniform float uRandomEffect; uniform float uExplodeTime; uniform float uAtlasSize; uniform float uSizeScale;
+                void main(){
+                    vUvLove=uvLove; vIdx=atlasIndex;
+                    if(uRandomEffect>0.5) vRandomColor=randomColor; else vRandomColor=vec3(0.65);
+                    vTulipColor=tulipColor;
+                    vec3 pos; float stage=uMix*2.0;
+                    if(stage<=25.0){ pos=position; pos.x+=sin(uTime*0.6+position.y*0.04)*2.0; pos.y+=cos(uTime*0.5+position.x*0.04)*2.0; }
+                    else if(stage<=50.0){ pos=position; pos.x+=sin(uTime*0.7+position.y*0.03)*1.5; pos.y+=cos(uTime*0.6+position.x*0.03)*1.5; }
+                    else if(stage<=75.0){ pos=position; pos.x+=sin(uTime*0.8+position.y*0.02)*2.5; pos.y+=cos(uTime*0.7+position.x*0.02)*2.5; }
+                    else{ vec3 orig=position; vec3 expOff=teksV*uExplodeTime*2.8; vec3 floatOff=vec3(sin(uTime*0.8+teksFloat.x*8.0)*2.5, cos(uTime*0.6+teksFloat.y*8.0)*2.5, sin(uTime*0.7+teksFloat.z*8.0)*2.5); pos=orig+expOff+floatOff; }
+                    vec4 mvPos=modelViewMatrix*vec4(pos,1.0); gl_PointSize=(2.0+uSizeScale*6.0)*(450.0/-mvPos.z); gl_Position=projectionMatrix*mvPos;
+                }`,
+            fragmentShader: `
+                uniform sampler2D uTexLove; uniform sampler2D uTexTeks; uniform sampler2D uCircleTex;
+                uniform float uHasLove; uniform float uHasTeks; uniform float uMix; uniform float uAtlasSize; uniform float uTime; uniform float uRandomEffect;
+                varying vec2 vUvLove; varying float vIdx; varying vec3 vRandomColor; varying vec3 vTulipColor;
+                void main(){
+                    vec2 coord=gl_PointCoord; if(length(coord-vec2(0.5))>0.5) discard;
+                    vec4 texCol=texture2D(uCircleTex,coord); if(texCol.a<0.5) discard;
+                    vec4 col; float stage=uMix*2.0;
+                    if(stage<=25.0) col=vec4(vTulipColor,1.0);
+                    else if(stage<=50.0){ if(uHasLove>0.5) col=texture2D(uTexLove,vUvLove); else col=vec4(1.0,0.3,0.3,1.0); }
+                    else if(stage<=75.0){ if(uRandomEffect>0.5) col=vec4(vRandomColor,1.0); else col=vec4(0.65,0.65,0.65,1.0); }
+                    else{ if(uHasTeks>0.5){ float total=uAtlasSize*uAtlasSize; float idx=floor(vIdx*total); vec2 grid=vec2(mod(idx,uAtlasSize),floor(idx/uAtlasSize)); vec2 uv=(vec2(coord.x,1.0-coord.y)+grid)/uAtlasSize; col=texture2D(uTexTeks,uv);} else col=vec4(1.0,1.0,1.0,1.0); }
+                    col.rgb+=fract(sin(coord.x*60.0+coord.y*40.0+uTime)*437.58)*0.06;
+                    gl_FragColor=col;
+                }`,
             transparent:false
         });
         sliderParticles = new THREE.Points(geometry, shaderMat);
@@ -541,7 +563,7 @@
     
     async function loadFromDB(){
         if(!db) return;
-        // Load teks (ratusan foto)
+        // Load teks
         const tx1 = db.transaction(['teks'], 'readonly');
         const get1 = tx1.objectStore('teks').get('data');
         get1.onsuccess = () => {
@@ -572,7 +594,7 @@
                 }
             }
         };
-        // Load love (1 foto)
+        // Load love
         const tx2 = db.transaction(['love'], 'readonly');
         const get2 = tx2.objectStore('love').get('data');
         get2.onsuccess = () => {
@@ -658,7 +680,6 @@
             if(Math.abs(explodeTarget - explodeT) < 0.05){ explodeT = explodeTarget; isExploding = false; }
         }
         
-        // HAND MODE PHYSICS (STEP)
         stepHandPhysics();
         
         if(sliderParticles && !handModeActive){
@@ -677,7 +698,6 @@
             if(document.getElementById('lockRotation').checked) sliderParticles.rotation.y += 0.0025;
         }
         
-        // Update simbol floating (hanya di slider mode)
         if(symbolParticles && !handModeActive){
             if(symbolParticles.material) symbolParticles.material.uniforms.uTime.value = animTime;
         }
